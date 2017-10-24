@@ -1,6 +1,9 @@
 # TSP
 from random import sample
 from numpy import median
+from numpy import std
+
+from matplotlib import pyplot as plt
 
 class TSP():
 	def __init__(self, cities):
@@ -17,6 +20,26 @@ class TSP():
 		self.p_mutationRate = 1
 
 		self.tours = self.initialize_population()
+		self.init_mean, self.init_stdev = self.average_fitness()
+		self.best = None
+
+	def plot_best(self, saveFile=None):
+		if self.best is None:
+			return
+		xs = [x for (x,y) in self.best]
+		ys = [y for (x,y) in self.best]
+		xs.append(xs[0])
+		ys.append(ys[0])
+
+		plt.scatter(xs, ys)
+		plt.plot(xs, ys, '-o')
+		plt.xticks(range(0,22,2))
+		plt.yticks(range(0,22,2))
+		plt.title("Best:"+str(self.eval_cities(self.best)))
+		if saveFile is not None:
+			plt.savefig(saveFile)
+		else:
+			plt.show()
 
 	def initialize_population(self):
 		return [sample(self.cities, self.n) for i in range(self.p_population)]
@@ -30,17 +53,17 @@ class TSP():
 		distances = [self._dist(tour[i], tour[i-1]) for i,_ in enumerate(tour)]
 		return sum(distances)
 
-	def display_average_fitness(self):
+	def average_fitness(self):
 		distances = [self.eval_cities(p) for p in self.tours]
-		print sum(distances)/self.p_population
-		print distances
-		print ""
+		average = sum(distances)/self.p_population
+		stdev = std(distances)
+		return average, stdev
 
 	def selection_median(self):
 		distances = [self.eval_cities(p) for p in self.tours]
 		# This works only if p_children is 2!!! JK
 		med_dist = median(distances)
-		return [p for (p,d) in zip(self.tours, distances) if d<med_dist]
+		return [p for (p,d) in zip(self.tours, distances) if d<=med_dist]
 
 	def _swap_mutation(self, tour):
 		for iter in range(self.p_mutationRate):
@@ -50,6 +73,9 @@ class TSP():
 
 	def mutate_all_children(self, children):
 		return [self._swap_mutation(c) for c in children]
+
+	def mutate_trivial(self, children):
+		return children
 
 	def alleles_contiguous_rand(self, dad, mom):
 		# Also worth writing crossover_contiguous_half
@@ -88,15 +114,24 @@ class TSP():
 		self.numIters += 1
 		return True
 
+	def termination_stdev(self):
+		multiplier = 0.001
+		avg, stdev = self.average_fitness()
+		if self.init_stdev * multiplier > stdev or self.numIters >= self.p_maxIters:
+			return False
+		self.numIters += 1
+		return True
+
 	def evolve_naive(self):
-		while self.termination_fixed_iters():
+		while self.termination_stdev():
 			survivors = self.selection_median()
 			children = self.mating_random(survivors)
-			mutated = self.mutate_all_children(children)
+			#mutated = self.mutate_all_children(children)
+			mutated = self.mutate_trivial(children)
 			self.tours = mutated
-			self.display_average_fitness()
-		print "Done"
-		
+			print "Iteration", self.numIters, ":", self.average_fitness()
+		self.best = min(self.tours, key=lambda x: self.eval_cities(x))
+
 	def selection(self, tours):
 		# Need some kind of parameter to specify selection criterion
 		# Potential for better algorithms than just "top 50% pass"
@@ -124,9 +159,14 @@ class TSP():
 # evolve_naive Test case
 
 cities = [(2,2), (2,4), (6,8), (4,12), (2,16), (6,20), (8, 18), (10,16), (10,12), (14,18), (18,20), (20,16), (18,10), (14,14), (12,8), (18,6), (20,4), (16,2), (10,4), (6,2)]
-tsp = TSP(cities)
-tsp.evolve_naive()
+numIters = 20
 
+for i in range(numIters):
+	tsp = TSP(cities)
+	tsp.evolve_naive()
+	tsp.plot_best(saveFile="./path"+str(i))
+	plt.cla()
+	print "-------------------------------------"
 
 # _crossover Test case
 
@@ -134,8 +174,11 @@ dad = range(1,10,1)
 mom = range(9,0,-1)
 dad_indices = [6,7,8]
 
-tsp = TSP(dad)
-#print tsp._crossover(dad, mom, dad_indices)
 
+"""
+
+What are other crossover techniques for TSP?
+
+"""
 
 
