@@ -1,5 +1,5 @@
 # TSP
-import random
+from random import sample
 from numpy import median
 
 class TSP():
@@ -8,40 +8,54 @@ class TSP():
 		self.cities = cities
 		self.n = len(cities)
 		self.p_children = 2
+		self.p_maxIters = 200
+		self.numIters = 0
 		# The top 1/p_children of a population survive
 		# The remaining S survivors produce p_children * S children
 
 		self.p_population = self.p_children * 50
 		self.p_mutationRate = 1
 
-	def dist(self, c1, c2):
+		self.tours = self.initialize_population()
+
+	def initialize_population(self):
+		return [sample(self.cities, self.n) for i in range(self.p_population)]
+
+	def _dist(self, c1, c2):
 		(x1, y1) = c1
 		(x2, y2) = c2
 		return ((x1-x2)**2 + (y1-y2)**2)**.5
 
 	def eval_cities(self, tour):
-		distances = [self.dist(tour[i], tour[i-1]) for i,_ in enumerate(tour)]
+		distances = [self._dist(tour[i], tour[i-1]) for i,_ in enumerate(tour)]
 		return sum(distances)
 
-	def initialize_population(self):
-		return [random.shuffle(self.cities) for i in range(self.p_population)]
+	def display_average_fitness(self):
+		distances = [self.eval_cities(p) for p in self.tours]
+		print sum(distances)/self.p_population
+		print distances
+		print ""
 
-	def selection_median(self, tours):
-		distances = [self.eval_cities(p) for p in tours]
+	def selection_median(self):
+		distances = [self.eval_cities(p) for p in self.tours]
+		# This works only if p_children is 2!!! JK
 		med_dist = median(distances)
-		return [p for (p,d) in zip(tours, distances) if d<med_dist]
+		return [p for (p,d) in zip(self.tours, distances) if d<med_dist]
 
-	def mutation_swap(self, tour):
+	def _swap_mutation(self, tour):
 		for iter in range(self.p_mutationRate):
-			i,j = random.sample(xrange(self.n), 2)
+			i,j = sample(xrange(self.n), 2)
 			tour[i], tour[j] = tour[j], tour[i]
 		return tour
 
-	def crossover_contiguous_rand(self, dad, mom):
+	def mutate_all_children(self, children):
+		return [self._swap_mutation(c) for c in children]
+
+	def alleles_contiguous_rand(self, dad, mom):
 		# Also worth writing crossover_contiguous_half
 		# For enforcing that exactly half of the chromosomes pass on
 		# Also worth trying a markov chain. 80% keep next allele
-		y1, y2 = random.sample(xrange(self.n), 2)
+		y1, y2 = sample(xrange(self.n), 2)
 		y1, y2 = min(y1, y2), max(y1, y2)
 		return self._crossover(dad, mom, range(y1, y2))
 
@@ -61,6 +75,28 @@ class TSP():
 				mom_pointer+=1
 		return child
 
+	def mating_random(self, parents):
+		random_indices = [sample(xrange(len(parents)), 2) \
+						for i in range(self.p_population)]
+		children = [self.alleles_contiguous_rand(parents[x], parents[y]) \
+						for (x,y) in random_indices]
+		return children
+
+	def termination_fixed_iters(self):
+		if self.numIters >= self.p_maxIters:
+			return False
+		self.numIters += 1
+		return True
+
+	def evolve_naive(self):
+		while self.termination_fixed_iters():
+			survivors = self.selection_median()
+			children = self.mating_random(survivors)
+			mutated = self.mutate_all_children(children)
+			self.tours = mutated
+			self.display_average_fitness()
+		print "Done"
+		
 	def selection(self, tours):
 		# Need some kind of parameter to specify selection criterion
 		# Potential for better algorithms than just "top 50% pass"
@@ -78,7 +114,6 @@ class TSP():
 		# 	Prediction: will converge to contiguous selections
 		pass
 
-
 	def evolve(self, f_fitness, f_termination):
 		# Does this kind of crossover strategy result in a stabel population?
 		# 	i.e. in the endgame, are all children "decently good"?
@@ -86,14 +121,21 @@ class TSP():
 		pass
 
 
-# Test case
+# evolve_naive Test case
+
+cities = [(2,2), (2,4), (6,8), (4,12), (2,16), (6,20), (8, 18), (10,16), (10,12), (14,18), (18,20), (20,16), (18,10), (14,14), (12,8), (18,6), (20,4), (16,2), (10,4), (6,2)]
+tsp = TSP(cities)
+tsp.evolve_naive()
+
+
+# _crossover Test case
 
 dad = range(1,10,1)
 mom = range(9,0,-1)
 dad_indices = [6,7,8]
 
 tsp = TSP(dad)
-print tsp._crossover(dad, mom, dad_indices)
+#print tsp._crossover(dad, mom, dad_indices)
 
 
 
